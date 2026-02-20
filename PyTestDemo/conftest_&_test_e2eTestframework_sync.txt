@@ -1,0 +1,80 @@
+Documentation: How conftest.py and test_e2eTestframework.py are connected
+
+Location of files (from workspace):
+- conftest.py: pytestDemo\PyTestDemo\conftest.py
+- test file: pytestDemo\PyTestDemo\test_e2eTestframework.py
+
+High-level summary
+------------------
+- `conftest.py` defines pytest configuration and fixtures used by test files under the same test package.
+- `test_e2eTestframework.py` contains a test function `test_e2e(...)` that depends on the `browserInstance` fixture defined in `conftest.py`.
+- Pytest automatically discovers fixtures in `conftest.py` and injects them by name into test functions.
+
+Key pieces in conftest.py and their role
+---------------------------------------
+1) pytest_addoption(parser)
+   - This function registers a custom CLI option `--browser_name` so tests can accept a browser name from the command line.
+   - In the current repository, `browserInstance` uses `request.param` (parameterized fixture) so the CLI option is not actively used by the fixture; however the option exists and could be used if the fixture were changed to call `request.config.getoption("--browser_name")`.
+
+2) @pytest.fixture(params=["firefox","chrome","msedge"])
+   - The `browserInstance` fixture is parameterized with three values. Pytest will run any test that uses `browserInstance` once per parameter value (cross-browser runs): firefox, chrome, and msedge.
+   - For each parameter value pytest sets `request.param` to that value and calls the fixture.
+
+3) Browser creation and teardown inside the fixture
+   - The fixture reads `browser_name = request.param` and chooses a corresponding Selenium WebDriver service and driver:
+     - firefox -> creates a `webdriver.Firefox` using a geckodriver path set explicitly.
+     - chrome -> creates a `webdriver.Chrome` using default service (no explicit executable passed).
+     - msedge -> creates a `webdriver.Edge`.
+   - The fixture yields `driver`. The test receives this `driver` object as the fixture return value.
+   - After the test completes (for each test invocation), the code after `yield` runs and calls `driver.quit()` to close the browser and release resources.
+
+How the test uses the fixture (test_e2eTestframework.py)
+--------------------------------------------------------
+- test_e2e(browserInstance):
+  - Pytest injects the `browserInstance` fixture into this test by matching the parameter name.
+  - The test assigns `driver = browserInstance` and then uses Selenium WebDriver APIs on `driver` to navigate and interact with the page:
+    - driver.get(...) to open the page
+    - driver.maximize_window()
+    - find elements and click to navigate to the shop page and interact with products
+    - uses explicit wait (WebDriverWait + expected_conditions) to wait for a country option and click it
+    - uses driver.find_element, driver.find_elements, and driver.execute_script / clicks, and form interactions
+  - Because the fixture is parameterized, this whole test runs three times per pytest session (once for each browser name) unless you change the fixture or filter tests.
+
+Behavioral notes and caveats
+---------------------------
+- Parameterized fixture vs CLI option:
+  - Currently `browserInstance` uses `request.param` so cross-browser testing is driven by the `params=[...]` list. The `--browser_name` CLI option is registered but not used by the fixture in its current form. If you prefer a CLI-driven browser selection, replace `browser_name = request.param` with `browser_name = request.config.getoption("--browser_name")` and change or remove the `params` argument on the fixture.
+
+- Driver executable paths and platform differences:
+  - The Firefox path in `conftest.py` is hard-coded to a local geckodriver cache directory. That path must exist on the machine where tests run, or Firefox will fail to start.
+  - Chrome and Edge service creation use default constructors; they rely on driver discovery or PATH configuration. If chromedriver/msedgedriver are not on PATH or not installed, those browsers may fail to start.
+
+- Implicit and explicit waits:
+  - The fixture sets `driver.implicitly_wait(5)` only for Edge in the current code. The test also uses an explicit WebDriverWait. Mixing implicit and explicit waits can lead to longer waits; explicit waits are usually preferred for targeted conditions.
+  - The test includes a `time.sleep(2)` which is a hard wait and can be replaced by explicit waits for robustness.
+
+- Fixture scope and lifecycle:
+  - The fixture's default scope is function-level (one fixture invocation per test invocation). Because the fixture is parameterized, each test invocation becomes multiple invocations (one per parameter value).
+  - If you wanted to open a browser once per test class or session, you could set `scope='class'` or `scope='session'` in the `@pytest.fixture(...)` decorator.
+
+How to run the test(s)
+----------------------
+- Run all tests in the package (this will run the parameterized test 3 times because of params):
+  - Open a terminal in the project root and run:
+    pytest -q
+  - To see print output from the test use -s:
+    pytest -q -s
+
+- If you change the fixture to use the CLI option instead of `params`, you can run a single browser via:
+    pytest -q -s --browser_name chrome
+
+Mapping: requirement coverage
+-----------------------------
+- Document how fixtures are provided to tests: Done (explained injection by name and yield semantics).
+- Explain cross-browser behavior and parameterization: Done (explains params, runs per param, and CLI alternative).
+- Explain lifecycle and teardown: Done (yield and driver.quit).
+- Explain potential pitfalls (driver path, waits): Done.
+
+If you want the same documentation placed somewhere else (for example inside the `pytestDemo\PyTestDemo` folder or named differently), tell me the desired path and I'll create it there instead. The .py files were not changed.
+
+End of documentation.
