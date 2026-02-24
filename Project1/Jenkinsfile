@@ -1,0 +1,49 @@
+pipeline {
+    agent any  // Run on any available Jenkins agent
+
+    stages {
+        stage('Checkout') {
+            steps {
+                // Clone your GitHub repo using credentials
+                git branch: 'master', url: 'https://github.com/DIBAKARHERE/Projects.git', credentialsId: '1b9b67ad-a239-43c5-8ed9-6b7cad8165c6'
+            }
+        }
+
+        stage('Setup Python Environment') {
+            steps {
+                // Create virtual environment
+                sh 'python3 -m venv .venv'
+                // Upgrade pip
+                sh '.venv/bin/pip install --upgrade pip'
+                // Install dependencies from requirements.txt
+                sh '.venv/bin/pip install -r requirements.txt'
+            }
+        }
+
+        stage('Run Tests') {
+            steps {
+                // Run tests with pytest
+                sh '.venv/bin/pytest test_e2eTestframework/'
+        }
+
+        stage('Deploy') {
+            steps {
+                // Placeholder for deployment
+                echo 'Deploying Python application...'
+            }
+        }
+    }
+
+    post {
+        always {
+            // Clean up the virtual environment after build
+            sh 'rm -rf .venv'
+        }
+        success {
+            echo 'Pipeline completed successfully!'
+        }
+        failure {
+            echo 'Pipeline failed. Check logs for details.'
+        }
+    }
+}
