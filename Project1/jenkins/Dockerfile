@@ -4,7 +4,7 @@ USER root
 RUN apt-get update && \
     apt-get install -y docker.io && \
     rm -rf /var/lib/apt/lists/* && \
-    groupadd -f docker && \
+    groupadd -g 102 docker || true && \
     usermod -aG docker jenkins
 
 USER jenkins
