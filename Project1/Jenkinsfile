@@ -24,6 +24,7 @@ pipeline {
             steps {
                 // Run tests with pytest
                 sh '.venv/bin/pytest test_e2eTestframework/'
+            }
         }
 
         stage('Deploy') {
